@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>115年春酒帶位系統-正式修正版</title>
+    <style>
+        :root { --red: #e74c3c; --green: #27ae60; --dark: #2c3e50; --gray: #f4f4f4; --checked: #d1d1d1; }
+        body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: #eee; margin: 0; padding: 10px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 800px; background: white; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); overflow: hidden; }
+        .tabs { display: flex; background: var(--dark); }
+        .tab { flex: 1; padding: 15px; text-align: center; color: #aaa; cursor: pointer; font-weight: bold; }
+        .tab.active { color: white; background: var(--red); }
+        .content { padding: 20px; min-height: 400px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .search-input { width: 100%; padding: 15px; font-size: 18px; border: 2px solid #ddd; border-radius: 10px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
+        .db-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .db-table th, .db-table td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+        .db-table th { background: var(--gray); }
+        .tag { font-size: 12px; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+        .tag-veg { background: #eafaf1; color: var(--green); border: 1px solid var(--green); }
+        .tag-meat { background: #fdf2f2; color: var(--red); border: 1px solid var(--red); }
+        .card { border: 1px solid #eee; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: white; transition: 0.3s; }
+        .table-badge { background: var(--red); color: white; padding: 5px 15px; border-radius: 20px; font-size: 20px; font-weight: bold; }
+        .is-checked { background: #f0f0f0 !important; color: #aaa !important; text-decoration: line-through; opacity: 0.7; }
+        .check-btn { background: #fff; border: 1px solid #ddd; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px; }
+        .check-btn.active { background: var(--green); color: white; border-color: var(--green); }
+        .no-name { color: #bbb; font-style: italic; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="tabs">
+        <div id="t-search" class="tab active" onclick="showTab('search')">🔍 快速查詢</div>
+        <div id="t-list" class="tab" onclick="showTab('list')">📋 全員總表</div>
+    </div>
+    <div class="content">
+        <div id="s-search" class="section active">
+            <input type="text" id="mainInput" class="search-input" placeholder="輸入姓名、站代號或桌號..." oninput="processSearch()">
+            <div id="displayArea"></div>
+        </div>
+        <div id="s-list" class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 id="totalCount" style="margin:0">載入中...</h3>
+                <button onclick="clearAllCheck()" style="font-size: 12px; cursor: pointer;">重置報到狀態</button>
+            </div>
+            <div style="overflow-x: auto; max-height: 600px;"><table class="db-table"><thead><tr><th>報到</th><th>桌號</th><th>姓名</th><th>站名</th><th>餐食</th></tr></thead><tbody id="fullTableBody"></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const rawData = [
+        {"id":1,"station":"NN6212A20 嘉仁站","name":"林宗賢","table":"5","diet":"素"},
+        {"id":2,"station":"NN6212C11 德州民族站","name":"林宗賢","table":"5","diet":"素"},
+        {"id":3,"station":"NN6212B78 統佳站1","name":"陳淑珠","table":"5","diet":"素"},
+        {"id":4,"station":"NN6212B78 統佳站2","name":"劉信南","table":"5","diet":"素"},
+        {"id":5,"station":"NN6212D05 統好歸仁站1","name":"陳清輝","table":"5","diet":"素"},
+        {"id":6,"station":"NN6212D05 統好歸仁站2","name":"陳建樺","table":"5","diet":"素"},
+        {"id":7,"station":"NN6212A62 大佳站","name":"謝陳金葉","table":"5","diet":"素"},
+        {"id":8,"station":"NN6212B27 美吉站1","name":"蔡炎坤","table":"5","diet":"素"},
+        {"id":9,"station":"NN6212A26 土城1","name":"王富正","table":"7","diet":"葷"},
+        {"id":10,"station":"NN6212A26 土城2","name":"無姓名","table":"7","diet":"葷"},
+        {"id":11,"station":"NN6212A69 土庫1","name":"無姓名","table":"7","diet":"葷"},
+        {"id":12,"station":"NN6212A69 土庫2","name":"無姓名","table":"7","diet":"葷"},
+        {"id":13,"station":"NN6212A69 土庫3","name":"無姓名","table":"7","diet":"葷"},
+        {"id":14,"station":"NN6212A13 加州1","name":"陳明良","table":"7","diet":"葷"},
+        {"id":15,"station":"NN6212A13 加州2","name":"許若萃","table":"7","diet":"葷"},
+        {"id":16,"station":"NN6212D07 永成路1","name":"林佳模","table":"7","diet":"葷"},
+        {"id":17,"station":"NN6212D07 永成路2","name":"無姓名","table":"7","diet":"葷"},
+        {"id":18,"station":"NN6212B27 美吉站1","name":"潘羽軒","table":"7","diet":"葷"},
+        {"id":19,"station":"NN6212C56 永大1","name":"鐘雅嫻","table":"8","diet":"葷"},
+        {"id":20,"station":"NN6212C56 永大2","name":"周鴻良","table":"8","diet":"葷"},
+        {"id":21,"station":"NN6212A87 新力1","name":"黃中寬","table":"8","diet":"葷"},
+        {"id":22,"station":"NN6212A87 新力2","name":"宋文瑜","table":"8","diet":"葷"},
+        {"id":23,"station":"NN6212A21 大德1","name":"蘇賜銓","table":"8","diet":"葷"},
+        {"id":24,"station":"NN6212A21 大德2","name":"無姓名","table":"8","diet":"葷"},
+        {"id":25,"station":"NN6212B14 加泓1","name":"林宏昆","table":"8","diet":"葷"},
+        {"id":26,"station":"NN6212B14 加泓2","name":"無姓名","table":"8","diet":"葷"},
+        {"id":27,"station":"NN6212A63 民安","name":"陳忠文","table":"8","diet":"葷"},
+        {"id":28,"station":"NN6212B76 民安海佃站","name":"無姓名","table":"8","diet":"葷"},
+        {"id":29,"station":"NN6212C69 興達港站","name":"劉卜瑞","table":"10","diet":"葷"},
+        {"id":30,"station":"NN6212C13 安定交流道站1","name":"陳功武","table":"10","diet":"葷"},
+        {"id":31,"station":"NN6212C13 安定交流道站2","name":"呂瑞珍","table":"10","diet":"葷"},
+        {"id":32,"station":"NN6212A30 五洲","name":"陳炳臣","table":"10","diet":"葷"},
+        {"id":33,"station":"NN6212C52 那拔林站1","name":"李建勳","table":"10","diet":"葷"},
+        {"id":34,"station":"NN6212C52 那拔林站2","name":"李麗雪","table":"10","diet":"葷"},
+        {"id":35,"station":"NN6212C86 金田","name":"李建輝","table":"11","diet":"葷"},
+        {"id":36,"station":"NN6212B89 南部","name":"陳美瑤","table":"11","diet":"葷"},
+        {"id":37,"station":"NN6212B08 旺位1","name":"鄭秀珠","table":"11","diet":"葷"},
+        {"id":38,"station":"NN6212B08 旺位2","name":"江芳淵","table":"11","diet":"葷"},
+        {"id":39,"station":"NN6212C21 大新站","name":"陳楷東","table":"11","diet":"葷"},
+        {"id":40,"station":"NN6212C25 瑞曜站","name":"陳科盛","table":"11","diet":"葷"},
+        {"id":41,"station":"NN6212A31 永新站","name":"陳奕廷","table":"11","diet":"葷"},
+        {"id":42,"station":"NN6212A96 大港站","name":"陳炯丞","table":"11","diet":"葷"},
+        {"id":43,"station":"NN6212D06 大成站","name":"陳昶宏","table":"11","diet":"葷"},
+        {"id":44,"station":"NN6212C53 元大1","name":"劉冠麟","table":"12","diet":"葷"},
+        {"id":45,"station":"NN6212C53 元大2","name":"無姓名","table":"12","diet":"葷"},
+        {"id":46,"station":"NN6212C60 明興1","name":"蔡郭金英","table":"12","diet":"葷"},
+        {"id":47,"station":"NN6212C60 明興2","name":"無姓名","table":"12","diet":"葷"},
+        {"id":48,"station":"NN6212C97 將軍交流道站","name":"陳佳烽","table":"12","diet":"葷"},
+        {"id":49,"station":"NN6212W01 將軍港漁船站","name":"陳佳烽","table":"12","diet":"葷"},
+        {"id":50,"station":"NN6212C77 縱貫永大站1","name":"楊岳霖","table":"12","diet":"葷"},
+        {"id":51,"station":"NN6212C77 縱貫永大站2","name":"楊岳霖","table":"12","diet":"葷"},
+        {"id":52,"station":"NN6212B45 松建站","name":"陳建元","table":"15","diet":"葷"},
+        {"id":53,"station":"NN6212D18 進學站1","name":"無姓名","table":"15","diet":"葷"},
+        {"id":54,"station":"NN6212D18 進學站2","name":"張展彪","table":"15","diet":"葷"},
+        {"id":55,"station":"NN6212A66 海寮站","name":"無名氏","table":"15","diet":"葷"},
+        {"id":56,"station":"NN6212C23 公學站","name":"無名氏","table":"15","diet":"葷"},
+        {"id":57,"station":"NN6212A15 再傳站1","name":"卓淑素","table":"15","diet":"葷"},
+        {"id":58,"station":"NN6212A15 再傳站2","name":"無姓名","table":"15","diet":"葷"},
+        {"id":59,"station":"NN6212C47 遠大站","name":"曾偉智","table":"15","diet":"葷"},
+        {"id":60,"station":"NN6212A92 大旺站","name":"朱旭騰","table":"15","diet":"葷"},
+        {"id":61,"station":"NN6212D03 亞柏路竹","name":"陳景生","table":"15","diet":"葷"},
+        {"id":62,"station":"NN6212B15 甲上站","name":"吳建聰","table":"16","diet":"葷"},
+        {"id":63,"station":"NN6212C88官田站","name":"鍾寬毅","table":"16","diet":"葷"},
+        {"id":64,"station":"NN6212B63 佳興站","name":"無姓名","table":"16","diet":"葷"},
+        {"id":65,"station":"NN6212D08 三大六甲站1","name":"尤虹雯","table":"16","diet":"葷"},
+        {"id":66,"station":"NN6212D08 三大六甲站2","name":"尤虹雯","table":"16","diet":"葷"},
+        {"id":67,"station":"NN6212A76 永康正大站","name":"賴逸鴻","table":"16","diet":"葷"},
+        {"id":68,"station":"NN6212A77 永康中山站","name":"陳仲傑","table":"16","diet":"葷"},
+        {"id":69,"station":"NN6212A85 永康六甲頂站","name":"林緯誠","table":"16","diet":"葷"},
+        {"id":70,"station":"NN6212A41 麻新站1","name":"陳建勳","table":"16","diet":"葷"},
+        {"id":71,"station":"NN6212A41 麻新站2","name":"陳泰瑀","table":"16","diet":"葷"},
+        {"id":72,"station":"NN6212B04 瑞南站","name":"陳垣㚬","table":"19","diet":"葷"},
+        {"id":73,"station":"NN6212B06 瑞泰站","name":"陳垣㚬","table":"19","diet":"葷"},
+        {"id":74,"station":"NN6212B33 瑞泉站","name":"陳垣㚬","table":"19","diet":"葷"},
+        {"id":75,"station":"NN6212B47 大銘昌站1","name":"陳淑貞","table":"19","diet":"葷"},
+        {"id":76,"station":"NN6212B47 大銘昌站2","name":"莊塗生","table":"19","diet":"葷"},
+        {"id":77,"station":"NN6212C92 太子站1","name":"胡碧珍","table":"19","diet":"葷"},
+        {"id":78,"station":"NN6212C92 太子站2","name":"胡佳禎","table":"19","diet":"葷"},
+        {"id":79,"station":"NN6212B61 國賓站","name":"梁峯林","table":"19","diet":"葷"},
+        {"id":80,"station":"NN6212B83 國賓七股站","name":"梁黃錦","table":"19","diet":"葷"},
+        {"id":82,"station":"NN6212B90 茄萣仁愛站","name":"吳爾祥","table":"20","diet":"葷"},
+        {"id":83,"station":"NN6212C75 湖中路站","name":"葉育成","table":"20","diet":"葷"},
+        {"id":84,"station":"NN6212C89 金嘉旺站","name":"周珩","table":"20","diet":"葷"},
+        {"id":85,"station":"NN6212C90 嘉盈台南站1","name":"王麗瑛","table":"20","diet":"葷"},
+        {"id":86,"station":"NN6212C95 嘉盈台南站2","name":"賴泇妡","table":"20","diet":"葷"},
+        {"id":87,"station":"NN6212C67 大田站1","name":"陳秀美","table":"20","diet":"葷"},
+        {"id":88,"station":"NN6212C67 大田站2","name":"無姓名","table":"20","diet":"葷"},
+        {"id":89,"station":"NN6212D14 濱海站1","name":"陳春帆","table":"20","diet":"葷"},
+        {"id":90,"station":"NN6212D14 濱海站2","name":"無姓名","table":"20","diet":"葷"},
+        {"id":91,"station":"NN6212C79 新玉井","name":"吳青鴻","table":"21","diet":"葷"},
+        {"id":92,"station":"NN6212B42 大玉井1","name":"王丁乙","table":"21","diet":"葷"},
+        {"id":93,"station":"NN6212B42 大玉井2","name":"張麗","table":"21","diet":"葷"},
+        {"id":94,"station":"NN6212B82 大楠西1","name":"無姓名","table":"21","diet":"葷"},
+        {"id":95,"station":"NN6212B82 大楠西2","name":"無姓名","table":"21","diet":"葷"},
+        {"id":96,"station":"NN6212C80 安業","name":"林易霖","table":"21","diet":"葷"},
+        {"id":97,"station":"NN6212C87 新中站1","name":"許琇玲","table":"21","diet":"葷"},
+        {"id":98,"station":"NN6212C87 新中站2","name":"許琇玲","table":"21","diet":"葷"},
+        {"id":99,"station":"NN6212B53 新左鎮站","name":"張家瑜","table":"21","diet":"葷"},
+        {"id":100,"station":"NN6212C22 走馬瀨站","name":"楊鳳英","table":"21","diet":"葷"},
+        {"id":101,"station":"NN6212C93 中正站","name":"辛彥龍","table":"22","diet":"葷"},
+        {"id":102,"station":"NN6212B38 大崗山站","name":"楊琇雅","table":"22","diet":"葷"},
+        {"id":103,"station":"NN6212A60 統好站1","name":"劉懿慧","table":"22","diet":"葷"},
+        {"id":104,"station":"NN6212A60 統好站2","name":"呂姿儀","table":"22","diet":"葷"},
+        {"id":105,"station":"NN6212B10 大關廟站","name":"葉宜靜","table":"22","diet":"葷"},
+        {"id":106,"station":"NN6212B34 億歸站","name":"廖婕妤","table":"22","diet":"葷"},
+        {"id":107,"station":"NN6212A53 北安站","name":"林宜璋","table":"22","diet":"葷"},
+        {"id":108,"station":"NN6212B64 大正站","name":"謝宗廷","table":"22","diet":"葷"},
+        {"id":109,"station":"NN6212D17 久井奇美","name":"王惠洙","table":"22","diet":"葷"},
+        {"id":110,"station":"NN6212C05 營農站","name":"洪華南","table":"23","diet":"葷"},
+        {"id":111,"station":"NN6212C06 將農站","name":"陳文明","table":"23","diet":"葷"},
+        {"id":112,"station":"NN6212D02 福昇站1","name":"蘇泰清","table":"23","diet":"葷"},
+        {"id":113,"station":"NN6212D02 福昇站2","name":"李錦華","table":"23","diet":"葷"},
+        {"id":114,"station":"NN6212A54 佳億站","name":"邱李淑貞","table":"23","diet":"葷"},
+        {"id":115,"station":"NN6212C24 篤加站","name":"許雅純","table":"23","diet":"葷"},
+        {"id":116,"station":"NN6212C74 永康中正南路站","name":"李恒修","table":"23","diet":"葷"},
+        {"id":117,"station":"NN6212C91 忠孝東路站","name":"陳秀琴","table":"23","diet":"葷"},
+        {"id":118,"station":"NN6212C71 佳農站","name":"黃百如","table":"23","diet":"葷"},
+        {"id":119,"station":"NN6212C82 北海站","name":"陳佳侯","table":"23","diet":"葷"},
+        {"id":120,"station":"NN6212C98 挑戰者公園南","name":"黃琡玲","table":"24","diet":"葷"},
+        {"id":121,"station":"NN6212A01 永昇","name":"林冠穎","table":"24","diet":"葷"},
+        {"id":122,"station":"NN6212A39 永樺站","name":"莫于萱","table":"24","diet":"葷"},
+        {"id":123,"station":"NN6212D20 巽景站1","name":"無姓名","table":"24","diet":"葷"},
+        {"id":124,"station":"NN6212D20 巽景站2","name":"無姓名","table":"24","diet":"葷"},
+        {"id":125,"station":"NN6212B01 嘉和","name":"胡翠珍","table":"24","diet":"葷"},
+        {"id":126,"station":"NN6212C68 南昇站1","name":"蔡濬宇","table":"24","diet":"葷"},
+        {"id":127,"station":"NN6212C68 南昇站2","name":"宋承祐","table":"24","diet":"葷"},
+        {"id":128,"station":"NN6212B21 轂豐1","name":"洪悅玲","table":"24","diet":"葷"},
+        {"id":129,"station":"NN6212B21 轂豐2","name":"劉龍興","table":"24","diet":"葷"}
+    ];
+
+    let checkedIds = JSON.parse(localStorage.getItem('checkedGuests_v2') || '[]');
+
+    function toggleCheck(id) {
+        if (checkedIds.includes(id)) {
+            checkedIds = checkedIds.filter(i => i !== id);
+        } else {
+            checkedIds.push(id);
+        }
+        localStorage.setItem('checkedGuests_v2', JSON.stringify(checkedIds));
+        if (document.getElementById('t-list').classList.contains('active')) renderFullTable(); else processSearch();
+    }
+
+    function clearAllCheck() {
+        if(confirm("確定要重置所有報到狀態嗎？")) {
+            checkedIds = [];
+            localStorage.setItem('checkedGuests_v2', '[]');
+            renderFullTable();
+        }
+    }
+
+    function showTab(name) {
+        document.querySelectorAll('.tab, .section').forEach(el => el.classList.remove('active'));
+        document.getElementById('t-' + name).classList.add('active');
+        document.getElementById('s-' + name).classList.add('active');
+        if(name === 'list') renderFullTable();
+    }
+
+    function renderFullTable() {
+        const body = document.getElementById('fullTableBody');
+        const sorted = [...rawData].sort((a,b) => parseInt(a.table) - parseInt(b.table));
+        document.getElementById('totalCount').innerText = `全員總名單 (共 ${sorted.length} 人)`;
+        body.innerHTML = sorted.map(m => {
+            const isChecked = checkedIds.includes(m.id);
+            return `<tr class="${isChecked ? 'is-checked' : ''}">
+                <td><button class="check-btn ${isChecked ? 'active' : ''}" onclick="toggleCheck(${m.id})">${isChecked ? '✅' : '未'}</button></td>
+                <td>${m.table}</td><td class="${m.name==='無姓名'?'no-name':''}">${m.name}</td><td>${m.station}</td>
+                <td><span class="tag ${m.diet==='素'?'tag-veg':'tag-meat'}">${m.diet}</span></td></tr>`;
+        }).join('');
+    }
+
+    function processSearch() {
+        const val = document.getElementById('mainInput').value.trim();
+        const area = document.getElementById('displayArea');
+        area.innerHTML = ''; if(!val) return;
+        let results = [];
+        if(/^\d+$/.test(val)) {
+            results = rawData.filter(g => g.table == val);
+            if(results.length > 0) {
+                let h = `<div style="background:#fff8f8; padding:15px; border-radius:10px; border:2px solid var(--red)"><b>第 ${val} 桌</b><hr style="border:0.5px solid #eee">`;
+                results.forEach(m => {
+                    const isChecked = checkedIds.includes(m.id);
+                    h += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f9f9f9" class="${isChecked ? 'is-checked' : ''}">
+                        <span>${m.name} <small>(${m.station})</small></span>
+                        <div><span class="tag ${m.diet==='素'?'tag-veg':'tag-meat'}">${m.diet}</span>
+                        <button class="check-btn ${isChecked ? 'active' : ''}" onclick="toggleCheck(${m.id})">${isChecked ? '✅' : '報到'}</button></div></div>`;
+                });
+                area.innerHTML = h + '</div>';
+            }
+        } else {
+            results = rawData.filter(g => g.name.includes(val) || g.station.includes(val));
+            results.forEach(m => {
+                const isChecked = checkedIds.includes(m.id);
+                area.innerHTML += `<div class="card ${isChecked ? 'is-checked' : ''}">
+                    <div><b style="font-size:18px" class="${m.name==='無姓名'?'no-name':''}">${m.name}</b> 
+                    <span class="tag ${m.diet==='素'?'tag-veg':'tag-meat'}">${m.diet}</span><br><small style="color:#666">${m.station}</small></div>
+                    <div style="display:flex; align-items:center"><div class="table-badge">${m.table}桌</div>
+                    <button class="check-btn ${isChecked ? 'active' : ''}" onclick="toggleCheck(${m.id})">${isChecked ? '✅' : '報到'}</button></div></div>`;
+            });
+        }
+    }
+</script>
+</body>
+</html>
