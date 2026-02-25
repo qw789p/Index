@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>115年春酒開獎系統</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --gold: #f1c40f; --red: #e74c3c; }
+        
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Microsoft JhengHei', sans-serif; 
+            background-color: transparent; 
+            color: white; overflow: hidden; 
+        }
+
+        .full-bg-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -100; background-color: #000;
+        }
+        .bg-img {
+            position: absolute; transition: opacity 0.8s ease;
+            display: block;
+        }
+
+        #bg-opening { 
+            z-index: -90; opacity: 1; filter: brightness(0.8); 
+            width: 120%; height: 120%; left: -10%; top: -15%; object-fit: contain; 
+        }
+
+        #bg-main { 
+            z-index: -95; opacity: 0; filter: brightness(0.5); 
+            width: 100%; height: 100%; left: 0; top: 0; object-fit: cover; 
+        }
+
+        .layout { display: flex; height: 100vh; padding: 20px; box-sizing: border-box; gap: 20px; position: relative; z-index: 10; background: transparent; }
+
+        /* 保留你調整的 450px 側邊欄 */
+        .side-bar { 
+            width: 450px; background: rgba(0, 0, 0, 0.65); 
+            border: 2px solid var(--gold); border-radius: 15px; 
+            padding: 20px; display: flex; flex-direction: column; 
+            backdrop-filter: blur(10px); transition: all 0.5s;
+        }
+        .special-mode .side-bar { opacity: 0; visibility: hidden; transform: translateX(-20px); width: 0; padding: 0; margin: 0; }
+
+        #winnerList { flex: 1; overflow-y: auto; }
+        /* 保留你調整的 2.2rem 大字體 */
+        .win-entry { 
+            padding: 15px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 2.2rem; 
+            cursor: pointer; transition: background 0.3s; line-height: 1.4;
+        }
+        .win-entry:hover { background: rgba(231, 76, 60, 0.3); }
+        .win-entry b { color: var(--gold); margin-right: 10px; font-size: 2.4rem;}
+
+        .main-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        #overviewDisplay {
+            display: none; width: 80%; background: rgba(0, 0, 0, 0.7);
+            border: 3px solid var(--gold); border-radius: 20px;
+            padding: 30px; backdrop-filter: blur(15px);
+            box-shadow: 0 0 30px rgba(241, 196, 15, 0.2);
+        }
+        .overview-table { width: 100%; border-collapse: collapse; font-size: 1.8rem; }
+        .overview-table th { color: var(--gold); border-bottom: 2px solid var(--gold); padding: 15px; text-align: left; }
+        .overview-table td { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .overview-title { font-size: 3rem; color: var(--gold); text-align: center; margin-bottom: 20px; font-weight: bold; }
+
+        #openingTextDisplay {
+            display: none; position: absolute; top: 80%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 6.5rem; font-weight: 900; width: 95%; line-height: 1.3; text-align: center;
+            letter-spacing: 12px; z-index: 100;
+            background-image: url('font2.png'); background-size: 70%; background-position: center 30%;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            filter: drop-shadow(2px 2px 0px rgba(0,0,0,1)) drop-shadow(0px 0px 10px rgba(0,0,0,0.8));
+        }
+
+        .show-text #openingTextDisplay, .show-overview #overviewDisplay { display: block; }
+        .show-text .prize-card, .show-text .result-box, .show-text .award-header,
+        .show-overview .prize-card, .show-overview .result-box, .show-overview .award-header { display: none; }
+
+        .award-header { text-align: center; margin-bottom: 40px; z-index: 50; transition: 0.3s; }
+        .award-title { font-size: 4.5rem; color: var(--gold); font-weight: bold; margin: 0; text-shadow: 3px 3px 15px #000; }
+        .award-quota { background: var(--red); padding: 8px 35px; border-radius: 50px; font-size: 1.8rem; display: inline-block; margin-top: 15px; font-weight: bold; }
+
+        .prize-display-container { 
+            display: flex; align-items: center; justify-content: center; 
+            gap: 50px; width: 100%; height: 75%; position: relative; 
+            transition: all 0.5s ease;
+        }
+        
+        .special-mode .prize-display-container { flex-direction: column; gap: 20px; }
+
+        /* 保留你調整的 650x500 獎品框 */
+        .prize-card {
+            width: 650px; height: 500px; 
+            border: 5px solid var(--gold); border-radius: 25px; 
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.4);
+            margin-top: -50px; 
+            overflow: hidden;
+        }
+        .special-mode .prize-card { border: none; width: 60vw; height: 50vh; background: transparent; margin-top: 0; }
+        
+        #prizeImg { width: 100%; height: 100%; object-fit: contain; }
+        .special-mode #prizeImg { object-fit: contain; } 
+
+        .result-box { min-width: 420px; text-align: center; }
+        #resNum { font-size: 11rem; font-weight: bold; color: #fff; text-shadow: 5px 5px 25px #000; line-height: 1; margin: 0; }
+        #resStation { font-size: 4.5rem; color: var(--gold); font-weight: bold; margin-top: 15px; text-shadow: 3px 3px 15px #000; }
+
+        .control-panel { 
+            position: fixed; bottom: 25px; right: 25px; 
+            z-index: 9999; display: flex; flex-direction: column; align-items: center;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px; border-radius: 12px; border: 2px solid var(--gold);
+            opacity: 0; transition: opacity 0.4s ease;
+        }
+        .control-panel:hover { opacity: 1; }
+
+        /* 📑 跳頁目錄樣式 */
+        #pageSelect {
+            background: #222; color: var(--gold); border: 1px solid var(--gold);
+            padding: 5px; width: 100%; margin-bottom: 10px; border-radius: 4px; font-size: 1rem;
+        }
+
+        #numInput { 
+            background: #000; border: 1px solid var(--gold); 
+            color: #fff; font-size: 1.8rem; width: 140px; 
+            text-align: center; border-radius: 8px; margin-bottom: 15px; outline: none;
+        }
+        .btn { background: var(--gold); color: #000; border: none; padding: 10px 20px; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 1.1rem; margin: 0 5px; }
+        .btn:hover { background: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="full-bg-container">
+    <img id="bg-opening" src="bg1.png" class="bg-img" alt="開場背景">
+    <img id="bg-main" src="bg2.png" class="bg-img" alt="開獎背景">
+</div>
+
+<div class="layout" id="mainLayout">
+    <div class="side-bar">
+        <h3>得獎名單 (點擊可刪除)</h3>
+        <div id="winnerList"></div>
+    </div>
+
+    <div class="main-stage">
+        <div class="award-header" id="headerArea">
+            <div id="curName" class="award-title"></div>
+            <div id="curQuota" class="award-quota"></div>
+        </div>
+
+        <div class="prize-display-container">
+            <div id="openingTextDisplay" class="animate__animated animate__fadeIn"></div>
+            
+            <div id="overviewDisplay" class="animate__animated animate__zoomIn">
+                <div class="overview-title">🧧 115年春酒 獎項總覽 🧧</div>
+                <table class="overview-table">
+                    <thead>
+                        <tr><th>獎項名稱</th><th>名額</th><th>獎項名稱</th><th>名額</th></tr>
+                    </thead>
+                    <tbody id="overviewBody"></tbody>
+                </table>
+            </div>
+
+            <div class="prize-card" id="prizeCard"><img id="prizeImg" src="" alt="獎項圖片"></div>
+            <div class="result-box">
+                <div id="resNum" class="animate__animated"></div>
+                <div id="resStation" class="animate__animated"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="control-panel">
+    <select id="pageSelect" onchange="jumpPage(this.value)"></select>
+    <input type="text" id="numInput" placeholder="編號" autofocus autocomplete="off">
+    <div class="nav-btns">
+        <button class="btn" onclick="goPage(-1)">◀ PREV</button>
+        <button class="btn" onclick="goPage(1)">NEXT ▶</button>
+    </div>
+</div>
+
+<script>
+    const prizeListData = [
+        { n: "特獎：Apple iPhone 17", q: 1 }, { n: "一獎：SAMSUNG 43吋電視", q: 1 },
+        { n: "二獎：Dyson 空氣清淨機", q: 1 }, { n: "三獎：任天堂Nintendo Switch 2", q: 1 },
+        { n: "四獎：Dyson 無線吸塵器", q: 1 }, { n: "五獎：Apple iPad", q: 1 },
+        { n: "六獎：虎牌IH電子鍋", q: 2 }, { n: "七獎：Apple Watch SE3", q: 2 },
+        { n: "八獎：飛利浦4.2L氣炸鍋", q: 2 }, { n: "九獎：捷安特 自行車", q: 4 },
+        { n: "普獎一：Apple AirPods 4", q: 4 }, { n: "普獎二：國際牌日本製電動牙刷", q: 4 },
+        { n: "普獎三：洗可麗 環保洗衣精(箱)", q: 15 }, { n: "普獎四：洗可麗 胺基酸洗沐組", q: 20 },
+        { n: "普獎五：洗可麗 海牡丹洗沐組", q: 20 }
+    ];
+
+    const config = [
+        { type: "opening", name: "開場：油品行銷事業部台南營業處<br>115年加盟站聯誼餐會", q: 0, url: "" }, 
+        { type: "overview", name: "獎項總覽", q: 0, url: "" },
+        { type: "draw", name: "普獎五<br>洗可麗 海牡丹洗沐組", q: 20, url: "普獎五.png" },
+        { type: "draw", name: "普獎四<br>洗可麗 胺基酸洗沐組", q: 20, url: "普獎四.png" },
+        { type: "draw", name: "普獎三<br>洗可麗 環保洗衣精(箱)", q: 15, url: "普獎三.png" },
+        { type: "draw", name: "普獎二<br>國際牌日本製電動牙刷", q: 4, url: "普獎二.png" },
+        { type: "draw", name: "普獎一<br>Apple AirPods 4", q: 4, url: "普獎一.png" },
+        { type: "draw", name: "九獎<br>捷安特 自行車", q: 4, url: "九獎.png" },
+        { type: "draw", name: "八獎<br>飛利浦4.2L氣炸鍋", q: 2, url: "八獎.png" },
+        { type: "draw", name: "七獎<br>Apple Watch SE3", q: 2, url: "七獎.png" },
+        { type: "draw", name: "六獎<br>虎牌IH電子鍋", q: 2, url: "六獎.png" },
+        { type: "draw", name: "五獎<br>Apple iPad", q: 1, url: "五獎.png" },
+        { type: "draw", name: "四獎<br>Dyson 無線吸塵器", q: 1, url: "四獎.png" },
+        { type: "draw", name: "三獎<br>任天堂Nintendo Switch 2", q: 1, url: "三獎.png" },
+        { type: "draw", name: "二獎<br>Dyson 空氣清淨機", q: 1, url: "二獎.png" },
+        { type: "draw", name: "一獎<br>SAMSUNG 43吋電視", q: 1, url: "一獎.png" },
+        { type: "draw", name: "特獎<br>Apple iPhone 17", q: 1, url: "特獎.png" },
+        { type: "draw", name: "謝謝大家", q: 0, url: "" }, // 🧧 插入空白預熱頁
+        { type: "draw", name: "主委加碼", q: 99, url: "加碼.gif" },
+        { type: "draw", name: "台南市加油站商業同業公會<br>王富民 理事長", q: 5, url: "2000紅包.png" },
+        { type: "draw", name: "中華民國加油站商業同業公會全國聯合會<br>李杰迅 理事長", q: 5, url: "2000紅包.png" },
+    ];
+
+    const guestData = {"40":"永昇站","73":"加州站","92":"再傳站","98":"嘉仁站","36":"大德站","117":"土城站","116":"五洲站","128":"永新站","101":"永樺站","115":"麻新站","34":"北安站","18":"佳億站","106":"保來站","81":"統好站","56":"大佳站","30":"民安站","8":"海寮站","58":"台糖三股站","45":"台糖曾文站","35":"永康正大站","123":"永康中山站","99":"台糖六甲站","29":"台糖豐德站","87":"台糖潭頂站","57":"台糖崇德站","69":"台糖文正站","74":"永康六甲頂站","7":"新力站","3":"台糖虎山站","82":"台糖大湖站","110":"大旺站","127":"大港站","109":"嘉和站","26":"瑞南站","84":"瑞泰站","22":"旺位站","97":"大關廟站","55":"加泓站","100":"甲上站","79":"順宇站","68":"轂豐站","77":"美吉站","47":"台糖國聖站","39":"台糖大營站","32":"瑞泉站","51":"億歸站","5":"大崗山站","94":"大玉井站","111":"台糖仁德站","80":"松建站","63":"大銘昌站","90":"新左鎮站","50":"國賓站","119":"大正站","60":"佳農站","120":"統佳站","41":"國賓七股站","125":"南廍站","76":"茄萣仁愛站","75":"營農站","102":"將農站","14":"德州民族站","124":"安定交流道站","46":"山隆安定站","70":"大新站","19":"走馬瀨站","1":"公學站","66":"篤加站","67":"瑞曜站","13":"遠大站","93":"那拔林站","61":"元大站","64":"永大路站","9":"台糖永安站","11":"山隆善化站","33":"明興站","83":"大田站","24":"南昇站","6":"興達港站","71":"山隆永康站","114":"永康中正南路站","52":"湖中路站","78":"縱貫永大站","16":"新玉井站","4":"安業站","10":"北海站","21":"北基崑山站","48":"金田站","25":"新中站","107":"官田站","38":"金嘉旺站","90":"安和站","126":"忠孝東路站","103":"太子站","108":"中正站","20":"北基麻豆站","59":"嘉盈台南分站","118":"北基阿蓮站","2":"將軍交流道站","12":"將軍港漁船站","122":"挑戰者公園南","96":"福昇站","105":"亞柏路竹站","53":"北基太子站","54":"統好歸仁站","49":"大成站","95":"永成路站","62":"三大六甲站","44":"北基新市站","89":"北基永康","86":"北基善化","15":"濱海站","27":"久井奇美","121":"進學站","72":"北基歸仁站"};
+
+    let page = 0;
+    let winners = {};
+    let allWinIds = new Set();
+
+    function init() {
+        const select = document.getElementById('pageSelect');
+        config.forEach((c, i) => {
+            c.rem = c.q;
+            winners[c.name] = [];
+            // 填充下拉選單
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.innerText = `${i+1}. ${c.name.replace('<br>', ' ')}`;
+            select.appendChild(opt);
+        });
+        
+        let html = '';
+        for(let i=0; i<prizeListData.length; i+=2) {
+            let p1 = prizeListData[i];
+            let p2 = prizeListData[i+1] || {n:'', q:''};
+            html += `<tr><td>${p1.n}</td><td>${p1.q}</td><td>${p2.n}</td><td>${p2.q}</td></tr>`;
+        }
+        document.getElementById('overviewBody').innerHTML = html;
+        update();
+    }
+
+    function jumpPage(val) {
+        page = parseInt(val);
+        update();
+    }
+
+    function update() {
+        const c = config[page];
+        const layout = document.getElementById('mainLayout');
+        const select = document.getElementById('pageSelect');
+        layout.classList.remove('special-mode', 'show-text', 'show-overview');
+        select.value = page; // 同步選單
+
+        if (c.type === "opening") {
+            document.getElementById('bg-opening').style.opacity = "1";
+            document.getElementById('bg-main').style.opacity = "0";
+            layout.classList.add('special-mode', 'show-text');
+            document.getElementById('openingTextDisplay').innerHTML = c.name.split('：')[1] || "";
+        } else if (c.type === "overview") {
+            document.getElementById('bg-opening').style.opacity = "1";
+            document.getElementById('bg-main').style.opacity = "0";
+            layout.classList.add('special-mode', 'show-overview');
+        } else {
+            document.getElementById('bg-opening').style.opacity = "0";
+            document.getElementById('bg-main').style.opacity = "1";
+            // 名稱包含「加碼」、「期待」或「理事長」就進入特殊模式
+            if (c.name.includes("加碼") || c.name.includes("謝謝") ) layout.classList.add('special-mode');
+
+            // 🎆 理事長煙火特效
+            if (c.name.includes("理事長")) {
+                launchFireworks();
+            }
+        }
+
+        document.getElementById('curName').innerHTML = c.name;
+        document.getElementById('curQuota').innerText = (c.q === 0) ? "WELCOME" : (c.q === 99 ? "加碼中" : `剩餘名額：${c.rem}`);
+        
+        const pImg = document.getElementById('prizeImg');
+        pImg.src = c.url || "";
+        pImg.style.visibility = c.url ? 'visible' : 'hidden';
+
+        document.getElementById('resNum').innerText = "";
+        document.getElementById('resStation').innerText = "";
+        renderList();
+        document.getElementById('numInput').focus();
+    }
+
+    function launchFireworks() {
+        var duration = 3 * 1000;
+        var end = Date.now() + duration;
+        (function frame() {
+            confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#f1c40f', '#e74c3c', '#ffffff'] });
+            confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#f1c40f', '#e74c3c', '#ffffff'] });
+            if (Date.now() < end) requestAnimationFrame(frame);
+        }());
+    }
+
+    function renderList() {
+        const c = config[page];
+        const listDiv = document.getElementById('winnerList');
+        listDiv.innerHTML = (winners[c.name] || []).map((w, idx) => `
+            <div class="win-entry" onclick="removeWinner('${c.name}', ${idx})"><b>${w.id}</b> ${w.st}</div>
+        `).join('');
+    }
+
+    function removeWinner(awardName, idx) {
+        if (confirm("確定要刪除這位得獎者嗎？名額將會回補。")) {
+            const removed = winners[awardName].splice(idx, 1)[0];
+            allWinIds.delete(removed.id);
+            
+            const c = config.find(i => i.name === awardName);
+            if(c && c.q !== 99) {
+                c.rem++;
+                document.getElementById('curQuota').innerText = `剩餘名額：${c.rem}`;
+            }
+            renderList();
+        }
+    }
+
+    document.getElementById('numInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const id = this.value.trim();
+            const st = guestData[id];
+            const c = config[page];
+            
+            if (c.type !== "draw" || c.name.includes("期待")) return;
+            if (!st) { 
+                alert("編號不存在"); 
+            } else if (allWinIds.has(id)) { 
+                alert("這個號碼抽過囉！請重抽。"); 
+            } else if (c.q !== 99 && c.rem <= 0) { 
+                alert("名額已滿"); 
+            } else {
+                winners[c.name].unshift({id, st});
+                allWinIds.add(id);
+                if(c.q !== 99) c.rem--;
+                animateResult(id, st);
+                renderList();
+                document.getElementById('curQuota').innerText = (c.q === 99) ? "加碼中" : `剩餘名額：${c.rem}`;
+            }
+            this.value = '';
+        }
+    });
+
+    // 保持你調整過的 animateResult 邏輯
+    function animateResult(id, st) {
+        const n = document.getElementById('resNum');
+        const s = document.getElementById('resStation');
+        n.classList.remove('animate__zoomIn');
+        s.classList.remove('animate__fadeInUp');
+        void n.offsetWidth; 
+        void s.offsetWidth;
+        n.innerText = id;
+        s.innerText = st;
+        n.classList.add('animate__zoomIn');
+        s.classList.add('animate__fadeInUp');
+    }
+
+    function goPage(dir) {
+        if (page + dir >= 0 && page + dir < config.length) {
+            page += dir;
+            update();
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
